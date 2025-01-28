@@ -40,7 +40,10 @@ int main() {
         nombreEtudiants++;
     }
 
+    // Calcul du nombre de TP nécessaires
     int nombreTP = nombreEtudiants / 2; // Nombre de TP par semaine
+    cout << "Nombre de TP necessaires par semaine : " << nombreTP << endl;
+
     vector<char> tps;
     for (int i = 0; i < nombreTP; ++i) {
         tps.push_back('A' + i); // TP A, B, C...
@@ -48,57 +51,59 @@ int main() {
 
     const int maxSemaines = 3; // Limite à 3 semaines
     vector<pair<int, int>> binomes = genererBinomes(nombreEtudiants); // Tous les binômes possibles
-    set<pair<int, int>> binomesUtilises; // Pour vérifier l'unicité des binômes globalement
-    vector<vector<pair<int, int>>> planning;
+    vector<vector<pair<pair<int, int>, char>>> planning; // Chaque semaine associe un binôme à un TP
+    set<pair<int, int>> binomesUtilisesGlobalement; // Suivi des binômes déjà utilisés dans toutes les semaines
 
     // Associer chaque étudiant aux TP qu'il a déjà réalisés
     unordered_map<int, unordered_set<char>> etudiantTP;
 
     while (true) {
         planning.clear();
-        binomesUtilises.clear();
         etudiantTP.clear();
-
+        binomesUtilisesGlobalement.clear();
         bool tirageReussi = true;
 
         for (int semaine = 1; semaine <= maxSemaines; ++semaine) {
-            vector<pair<int, int>> semaineBinomes;
+            vector<pair<pair<int, int>, char>> semaineBinomes;
             unordered_set<int> etudiantsUtilises; // Vérifier qu'un étudiant n'est pas déjà dans un binôme cette semaine
+            vector<char> tpRestants = tps;       // TP disponibles cette semaine
             melanger(binomes);
 
-            // Sélectionner des binômes non encore utilisés et respectant les contraintes
             for (const auto& binome : binomes) {
-                // Vérifier que le binôme est utilisable
-                if (binomesUtilises.find(binome) == binomesUtilises.end() &&
+                if (tpRestants.empty()) break; // Plus de TP disponibles cette semaine
+
+                // Vérifier que le binôme est unique globalement
+                if (binomesUtilisesGlobalement.find(binome) == binomesUtilisesGlobalement.end() &&
                     etudiantsUtilises.find(binome.first) == etudiantsUtilises.end() &&
                     etudiantsUtilises.find(binome.second) == etudiantsUtilises.end()) {
                     
-                    // Vérifier que les deux étudiants n'ont pas déjà fait le TP assigné
-                    bool tpValide = false;
+                    // Chercher un TP valide pour ce binôme
                     char tpAssigne = '\0';
-                    for (char tp : tps) {
+                    for (char tp : tpRestants) {
                         if (etudiantTP[binome.first].find(tp) == etudiantTP[binome.first].end() &&
                             etudiantTP[binome.second].find(tp) == etudiantTP[binome.second].end()) {
                             tpAssigne = tp;
-                            tpValide = true;
                             break;
                         }
                     }
 
-                    if (tpValide) {
-                        semaineBinomes.push_back(binome);
-                        binomesUtilises.insert(binome);
+                    if (tpAssigne != '\0') {
+                        // Ajouter le binôme et assigner le TP
+                        semaineBinomes.push_back({binome, tpAssigne});
                         etudiantsUtilises.insert(binome.first);
                         etudiantsUtilises.insert(binome.second);
                         etudiantTP[binome.first].insert(tpAssigne);
                         etudiantTP[binome.second].insert(tpAssigne);
-                        if (semaineBinomes.size() == nombreTP) break;
+                        tpRestants.erase(remove(tpRestants.begin(), tpRestants.end(), tpAssigne), tpRestants.end());
+                        binomesUtilisesGlobalement.insert(binome); // Marquer ce binôme comme utilisé
                     }
+
+                    if (semaineBinomes.size() == nombreTP) break;
                 }
             }
 
             // Vérifier si le tirage est valide
-            if (semaineBinomes.size() < nombreTP) {
+            if (semaineBinomes.size() != nombreTP) {
                 cout << "Tirage invalide. Recommencement..." << endl;
                 tirageReussi = false;
                 break;
@@ -115,7 +120,9 @@ int main() {
     for (size_t semaine = 0; semaine < planning.size(); ++semaine) {
         cout << "Semaine " << semaine + 1 << " :" << endl;
         for (size_t i = 0; i < planning[semaine].size(); ++i) {
-            cout << "TP " << tps[i] << " : Etudiants " << planning[semaine][i].first << " et " << planning[semaine][i].second << endl;
+            auto binome = planning[semaine][i].first;
+            char tp = planning[semaine][i].second;
+            cout << "TP " << tp << " : Etudiants " << binome.first << " et " << binome.second << endl;
         }
     }
 
@@ -129,10 +136,12 @@ int main() {
         fichier << "Semaine,TP,Etudiant 1,Etudiant 2\n";
         for (size_t semaine = 0; semaine < planning.size(); ++semaine) {
             for (size_t i = 0; i < planning[semaine].size(); ++i) {
+                auto binome = planning[semaine][i].first;
+                char tp = planning[semaine][i].second;
                 fichier << "Semaine " << semaine + 1 << ",";
-                fichier << tps[i] << ",";
-                fichier << planning[semaine][i].first << ",";
-                fichier << planning[semaine][i].second << "\n";
+                fichier << tp << ",";
+                fichier << binome.first << ",";
+                fichier << binome.second << "\n";
             }
         }
         fichier.close();
